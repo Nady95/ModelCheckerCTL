@@ -1,2 +1,5 @@
-package ctl;public class CTLFormula {
+package ctl;
+
+public class CTLFormula {
+
 }
