@@ -1,0 +1,49 @@
+{
+  "states": [
+    {
+      "name": "s0",
+      "isInitial": "true",
+      "labels": [
+        {
+          "atom": "a"
+        },
+        {
+          "atom": "b"
+        }
+      ]
+    },
+    {
+      "name": "s1",
+      "isInitial": "false",
+      "labels": [
+        {
+          "atom": "true"
+        }
+      ]
+    },
+    {
+      "name": "s2",
+      "isInitial": "false",
+      "labels": [
+        {
+          "atom": "a"
+        }
+      ]
+    }
+  ],
+  "transitions": [
+    {
+      "stateA": "s0",
+      "stateB": "s1"
+    },
+    {
+      "stateA": "s1",
+      "stateB": "s2"
+    },
+    {
+      "stateA": "s2",
+      "stateB": "s0"
+    }
+  ],
+  "ctlformula": "EX(s1)"
+}
