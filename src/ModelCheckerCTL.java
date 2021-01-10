@@ -2,6 +2,8 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import ctl.CTLFormula;
+import ctl.atom.Atom;
 import kripke.KripkeStructure;
 import kripke.State;
 
@@ -10,7 +12,9 @@ import java.io.Reader;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Main class of the application "Model Checker CTL"
@@ -24,6 +28,7 @@ import java.util.List;
  */
 public class ModelCheckerCTL {
     private static final KripkeStructure kripkeStructure = new KripkeStructure();
+    private CTLFormula ctlFormula;
 
     public static void main(String[] args) {
         if(args.length == 0) {
@@ -32,6 +37,13 @@ public class ModelCheckerCTL {
         }
 
         readFile(args[0]);
+
+        // DEBUG
+        for (State s : kripkeStructure.getStates().values()) {
+            System.out.println(s.getName() + "," + s.isInitial() + "," + s.getLabels() + "," + s.getLinkedStates());
+        }
+
+        marking(new Atom("b"));
     }
 
     public static void readFile(String filePath) {
@@ -47,13 +59,8 @@ public class ModelCheckerCTL {
             // On crée ensuite chaque transition
             createTransitionsFromJson(jsonObject.getAsJsonArray("transitions"));
 
-            // On récupère enfin la formule CTL (debug car on ne fait que l'afficher pour le moment)
-            System.out.println(jsonObject.get("ctlformula").getAsString());
-
-            // DEBUG
-            for (State s : kripkeStructure.getStates().values()) {
-                System.out.println(s.getName() + "," + s.isInitial() + "," + s.getLabels() + "," + s.getLinkedStates());
-            }
+            // Enfin, on récupère la formule CTL (debug car on ne fait que l'afficher pour le moment)
+            parseFormulaFromJson(jsonObject.get("ctlformula").getAsString());
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -71,10 +78,11 @@ public class ModelCheckerCTL {
             boolean isInitial = state.getAsJsonObject().get("isInitial").getAsBoolean();
 
             // On récupère les labels
-            List<String> labels = new ArrayList<>();
+            List<CTLFormula> labels = new ArrayList<>();
             JsonArray jArray = state.getAsJsonObject().getAsJsonArray("labels");
             for(int i=0; i<jArray.size();i++) {
-                labels.add(jArray.get(i).getAsJsonObject().get("atom").getAsString());
+                CTLFormula formula = new Atom(jArray.get(i).getAsJsonObject().get("atom").getAsString());
+                labels.add(formula);
             }
 
             // Enfin, on crée l'état et on l'ajoute dans la structure de Kripke
@@ -92,5 +100,21 @@ public class ModelCheckerCTL {
                     kripkeStructure.getStateFromName(stateBName)
             );
         }
+    }
+
+    public static void parseFormulaFromJson(String formulaAsString) {
+        //if()
+    }
+
+    public static Map<State, Boolean> marking(CTLFormula formula) {
+        Map<State, Boolean> statesBool = new HashMap<>();
+        for (State state : kripkeStructure.getStates().values()) {
+            if (state.getLabels().contains(formula)) {
+                statesBool.put(state, Boolean.TRUE);
+            } else {
+                statesBool.put(state, Boolean.FALSE);
+            }
+        }
+        return statesBool;
     }
 }

@@ -45,5 +45,5 @@
       "stateB": "s0"
     }
   ],
-  "ctlformula": "EX(s1)"
+  "ctlformula": "b"
 }

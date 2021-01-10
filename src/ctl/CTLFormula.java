@@ -1,5 +1,5 @@
 package ctl;
 
-public class CTLFormula {
-
+public interface CTLFormula {
+    CTLFormula toCTL();
 }

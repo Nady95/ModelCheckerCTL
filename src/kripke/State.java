@@ -1,15 +1,17 @@
 package kripke;
 
+import ctl.CTLFormula;
+
 import java.util.ArrayList;
 import java.util.List;
 
 public class State {
     private final String name;
-    private final ArrayList<String> labels;
+    private final ArrayList<CTLFormula> labels;
     private final ArrayList<State> linkedStates;
     private final boolean isInitial;
 
-    public State(String name, boolean isInitial, List<String> atomicPropositions) {
+    public State(String name, boolean isInitial, List<CTLFormula> atomicPropositions) {
         this.name = name;
         this.isInitial = isInitial;
         this.labels = new ArrayList<>();
@@ -29,11 +31,16 @@ public class State {
         return isInitial;
     }
 
-    public ArrayList<String> getLabels() {
+    public ArrayList<CTLFormula> getLabels() {
         return this.labels;
     }
 
     public ArrayList<State> getLinkedStates() {
         return this.linkedStates;
+    }
+
+    @Override
+    public String toString() {
+        return this.name;
     }
 }
