@@ -45,5 +45,5 @@
       "stateB": "s0"
     }
   ],
-  "ctlformula": "b"
+  "ctlformula": "EX(phi1&&phi2)"
 }

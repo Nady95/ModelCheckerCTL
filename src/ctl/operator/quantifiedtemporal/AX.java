@@ -1,6 +1,7 @@
 package ctl.operator.quantifiedtemporal;
 
 import ctl.CTLFormula;
+import ctl.operator.bool.Not;
 
 import java.util.Objects;
 
@@ -13,7 +14,7 @@ public class AX implements CTLFormula {
 
     @Override
     public CTLFormula toCTL() {
-        return new AX(operand.toCTL());
+        return new Not(new EX(new Not(operand))).toCTL();
     }
 
     @Override

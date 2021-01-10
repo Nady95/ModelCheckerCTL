@@ -14,7 +14,7 @@ public class AG implements CTLFormula {
 
     @Override
     public CTLFormula toCTL() {
-        return new Not(new AF(new Not(operand))).toCTL();
+        return new Not(new EF(new Not(operand))).toCTL();
     }
 
     @Override
