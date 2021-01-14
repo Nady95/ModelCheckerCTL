@@ -1,49 +1,153 @@
 {
   "states": [
     {
-      "name": "s0",
+      "name": "0",
       "isInitial": "true",
       "labels": [
         {
-          "atom": "a"
+          "atom": "end1"
         },
         {
-          "atom": "b"
+          "atom": "end2"
         }
       ]
     },
     {
-      "name": "s1",
+      "name": "1",
       "isInitial": "false",
       "labels": [
         {
-          "atom": "true"
+          "atom": "req1"
+        },
+        {
+          "atom": "end2"
         }
       ]
     },
     {
-      "name": "s2",
+      "name": "2",
       "isInitial": "false",
       "labels": [
         {
-          "atom": "a"
+          "atom": "req2"
+        },
+        {
+          "atom": "end1"
+        }
+      ]
+    },
+    {
+      "name": "3",
+      "isInitial": "false",
+      "labels": [
+        {
+          "atom": "req1"
+        },
+        {
+          "atom": "req2"
+        }
+      ]
+    },
+    {
+      "name": "4",
+      "isInitial": "false",
+      "labels": [
+        {
+          "atom": "cs1"
+        }
+      ]
+    },
+    {
+      "name": "5",
+      "isInitial": "false",
+      "labels": [
+        {
+          "atom": "cs2"
+        }
+      ]
+    },
+    {
+      "name": "6",
+      "isInitial": "false",
+      "labels": [
+        {
+          "atom": "req2"
+        },
+        {
+          "atom": "cs1"
+        }
+      ]
+    },
+    {
+      "name": "7",
+      "isInitial": "false",
+      "labels": [
+        {
+          "atom": "req1"
+        },
+        {
+          "atom": "cs2"
         }
       ]
     }
   ],
   "transitions": [
     {
-      "stateA": "s0",
-      "stateB": "s1"
+      "stateA": "0",
+      "stateB": "1"
     },
     {
-      "stateA": "s1",
-      "stateB": "s2"
+      "stateA": "0",
+      "stateB": "2"
     },
     {
-      "stateA": "s2",
-      "stateB": "s0"
+      "stateA": "1",
+      "stateB": "3"
+    },
+    {
+      "stateA": "1",
+      "stateB": "4"
+    },
+    {
+      "stateA": "2",
+      "stateB": "3"
+    },
+    {
+      "stateA": "2",
+      "stateB": "5"
+    },
+    {
+      "stateA": "3",
+      "stateB": "6"
+    },
+    {
+      "stateA": "3",
+      "stateB": "7"
+    },
+    {
+      "stateA": "4",
+      "stateB": "0"
+    },
+    {
+      "stateA": "4",
+      "stateB": "6"
+    },
+    {
+      "stateA": "5",
+      "stateB": "0"
+    },
+    {
+      "stateA": "5",
+      "stateB": "7"
+    },
+    {
+      "stateA": "6",
+      "stateB": "2"
+    },
+    {
+      "stateA": "7",
+      "stateB": "1"
     }
   ],
-  "ctlformula": "EX(phi1&&phi2)"
+  "ctlformula": "AG(EF(idle1&&idle2))"
 }

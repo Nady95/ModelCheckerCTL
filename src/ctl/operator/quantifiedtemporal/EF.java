@@ -17,6 +17,10 @@ public class EF implements CTLFormula {
         return new EU(new True(), operand).toCTL();
     }
 
+    public CTLFormula getOperand() {
+        return operand;
+    }
+
     @Override
     public String toString() {
         return "EF(" + operand.toString() + ")";
@@ -28,5 +32,10 @@ public class EF implements CTLFormula {
         if (o == null || getClass() != o.getClass()) return false;
         EF that = (EF) o;
         return Objects.equals(operand, that.operand);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(operand);
     }
 }

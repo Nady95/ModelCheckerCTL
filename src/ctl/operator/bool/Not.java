@@ -16,6 +16,10 @@ public class Not implements CTLFormula {
         return new Not(operand.toCTL());
     }
 
+    public CTLFormula getOperand() {
+        return operand;
+    }
+
     @Override
     public String toString() {
         return "NOT " + operand.toString();
@@ -27,5 +31,10 @@ public class Not implements CTLFormula {
         if (o == null || getClass() != o.getClass()) return false;
         Not that = (Not) o;
         return Objects.equals(operand, that.operand);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(operand);
     }
 }

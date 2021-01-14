@@ -28,4 +28,9 @@ public class Atom implements CTLFormula {
         Atom that = (Atom) o;
         return Objects.equals(atomicProposition, that.atomicProposition);
     }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(atomicProposition);
+    }
 }

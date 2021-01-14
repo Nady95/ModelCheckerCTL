@@ -18,9 +18,17 @@ public class And implements CTLFormula {
         return new And(operand1.toCTL(), operand2.toCTL());
     }
 
+    public CTLFormula getOperand1() {
+        return operand1;
+    }
+
+    public CTLFormula getOperand2() {
+        return operand2;
+    }
+
     @Override
     public String toString() {
-        return operand1.toString() + " AND " + operand2.toString();
+        return "(" + operand1.toString() + " AND " + operand2.toString() + ")";
     }
 
     @Override
@@ -29,5 +37,10 @@ public class And implements CTLFormula {
         if (o == null || getClass() != o.getClass()) return false;
         And that = (And) o;
         return Objects.equals(operand1, that.operand1) && Objects.equals(operand2, that.operand2);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(operand1, operand2);
     }
 }

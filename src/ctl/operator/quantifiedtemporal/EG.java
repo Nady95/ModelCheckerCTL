@@ -17,6 +17,10 @@ public class EG implements CTLFormula {
         return new Not(new AF(new Not(operand))).toCTL();
     }
 
+    public CTLFormula getOperand() {
+        return operand;
+    }
+
     @Override
     public String toString() {
         return "EG(" + operand.toString() + ")";
@@ -28,5 +32,10 @@ public class EG implements CTLFormula {
         if (o == null || getClass() != o.getClass()) return false;
         EG that = (EG) o;
         return Objects.equals(operand, that.operand);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(operand);
     }
 }

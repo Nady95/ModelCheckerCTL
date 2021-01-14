@@ -18,6 +18,14 @@ public class EU implements CTLFormula {
         return new EU(operand1.toCTL(), operand2.toCTL());
     }
 
+    public CTLFormula getOperand1() {
+        return operand1;
+    }
+
+    public CTLFormula getOperand2() {
+        return operand2;
+    }
+
     @Override
     public String toString() {
         return "E(" + operand1.toString() + " U " + operand2.toString() + ")";
@@ -30,5 +38,10 @@ public class EU implements CTLFormula {
         EU that = (EU) o;
         return Objects.equals(operand1, that.operand1) &&
                 Objects.equals(operand2, that.operand2);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(operand1, operand2);
     }
 }

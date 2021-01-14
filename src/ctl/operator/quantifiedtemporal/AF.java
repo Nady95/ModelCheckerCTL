@@ -17,6 +17,10 @@ public class AF implements CTLFormula {
         return new AU(new True(), operand).toCTL();
     }
 
+    public CTLFormula getOperand() {
+        return operand;
+    }
+
     @Override
     public String toString() {
         return "AF(" + operand.toString() + ")";
@@ -28,5 +32,10 @@ public class AF implements CTLFormula {
         if (o == null || getClass() != o.getClass()) return false;
         AF that = (AF) o;
         return Objects.equals(operand, that.operand);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(operand);
     }
 }

@@ -16,6 +16,10 @@ public class EX implements CTLFormula {
         return new EX(operand.toCTL());
     }
 
+    public CTLFormula getOperand() {
+        return operand;
+    }
+
     @Override
     public String toString() {
         return "EX(" + operand.toString() + ")";
@@ -29,4 +33,8 @@ public class EX implements CTLFormula {
         return Objects.equals(operand, that.operand);
     }
 
+    @Override
+    public int hashCode() {
+        return Objects.hash(operand);
+    }
 }

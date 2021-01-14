@@ -18,6 +18,14 @@ public class AU implements CTLFormula {
         return new AU(operand1.toCTL(), operand2.toCTL());
     }
 
+    public CTLFormula getOperand1() {
+        return operand1;
+    }
+
+    public CTLFormula getOperand2() {
+        return operand2;
+    }
+
     @Override
     public String toString() {
         return "A(" + operand1.toString() + " U " + operand2.toString() + ")";
@@ -30,5 +38,10 @@ public class AU implements CTLFormula {
         AU that = (AU) o;
         return Objects.equals(operand1, that.operand1) &&
                 Objects.equals(operand2, that.operand2);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(operand1, operand2);
     }
 }

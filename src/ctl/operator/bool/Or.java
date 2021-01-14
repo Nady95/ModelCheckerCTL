@@ -18,9 +18,17 @@ public class Or implements CTLFormula {
         return new Or(operand1.toCTL(), operand2.toCTL());
     }
 
+    public CTLFormula getOperand1() {
+        return operand1;
+    }
+
+    public CTLFormula getOperand2() {
+        return operand2;
+    }
+
     @Override
     public String toString() {
-        return operand1.toString() + " OR " + operand2.toString();
+        return "(" + operand1.toString() + " OR " + operand2.toString() + ")";
     }
 
     @Override
@@ -29,5 +37,10 @@ public class Or implements CTLFormula {
         if (o == null || getClass() != o.getClass()) return false;
         Or that = (Or) o;
         return Objects.equals(operand1, that.operand1) && Objects.equals(operand2, that.operand2);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(operand1, operand2);
     }
 }

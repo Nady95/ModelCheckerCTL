@@ -22,4 +22,9 @@ public class False implements CTLFormula {
         return this == o || (getClass() == o.getClass());
     }
 
+    @Override
+    public int hashCode() {
+        return 0;
+    }
+
 }

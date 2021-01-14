@@ -2,6 +2,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import ctl.StateWrapper;
 import ctl.CTLFormula;
 import ctl.atom.Atom;
 import ctl.atom.False;
@@ -17,10 +18,7 @@ import java.io.IOException;
 import java.io.Reader;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -37,8 +35,9 @@ import java.util.regex.Pattern;
 public class ModelCheckerCTL {
     private static final KripkeStructure kripkeStructure = new KripkeStructure();
     private static CTLFormula ctlFormula;
+    private static ArrayList<StateWrapper> stateWrapperList;
 
-    private static final Pattern PATTERN_ATOM = Pattern.compile("[a-z][a-zA-Z0-9\\_]*");
+    private static final Pattern PATTERN_ATOM = Pattern.compile("[a-z][a-zA-Z0-9_]*");
     private static final Pattern PATTERN_FALSE = Pattern.compile("false");
     private static final Pattern PATTERN_TRUE = Pattern.compile("true");
 
@@ -63,17 +62,35 @@ public class ModelCheckerCTL {
                     "une description textuelle d'une structure de Kripke (KS) et une formule CTL");
         }
 
-        readFile(args[0]);
-
-        // DEBUG
-        for (State s : kripkeStructure.getStates().values()) {
-            System.out.println(s.getName() + "," + s.isInitial() + "," + s.getLabels() + "," + s.getLinkedStates());
+        try {
+            readFile(args[0]);
+        } catch (Exception e) {
+            e.printStackTrace();
         }
 
-        marking(new Atom("b"));
+        // On ajoute tous les états de la structure de Kripke à notre liste principale
+        stateWrapperList = createStateWrapperList();
+
+        CTLFormula ctlFormulaSimplified = ctlFormula.toCTL();
+
+        System.out.println(ctlFormulaSimplified.toString());
+
+        if (ctlFormulaSimplified instanceof Atom) {
+            case1(ctlFormulaSimplified);
+        } else if (ctlFormulaSimplified instanceof Not) {
+            case2notPhi(ctlFormulaSimplified);
+        } else if (ctlFormulaSimplified instanceof And) {
+            case3And(ctlFormulaSimplified);
+        } else if (ctlFormulaSimplified instanceof EX) {
+            case4EX(ctlFormulaSimplified);
+        } else if (ctlFormulaSimplified instanceof EU) {
+            case5EU(ctlFormulaSimplified);
+        } else if (ctlFormulaSimplified instanceof AU) {
+            case6AU(ctlFormulaSimplified);
+        }
     }
 
-    public static void readFile(String filePath) {
+    public static void readFile(String filePath) throws Exception {
         try {
             // On récupère le contenu de notre fichier Json avec l'API Gson
             Gson gson = new Gson();
@@ -129,7 +146,7 @@ public class ModelCheckerCTL {
         }
     }
 
-    public static CTLFormula parseFormulaFromJson(String formulaAsString) {
+    public static CTLFormula parseFormulaFromJson(String formulaAsString) throws Exception {
         // On crée nos matchers qui vont parcourir le texte en cherchant le pattern (peut être simplifié)
         Matcher MATCHER_ATOM = PATTERN_ATOM.matcher(formulaAsString);
         Matcher MATCHER_FALSE = PATTERN_FALSE.matcher(formulaAsString);
@@ -149,7 +166,8 @@ public class ModelCheckerCTL {
         Matcher MATCHER_EU = PATTERN_EU.matcher(formulaAsString);
         Matcher MATCHER_EX = PATTERN_EX.matcher(formulaAsString);
 
-        if(MATCHER_AF.matches()) {
+        // On cherche des matches (l'ordre des matchers est important)
+        if (MATCHER_AF.matches()) {
             System.out.println("MATCH_AF:" + MATCHER_AF.group());
             return new AF(parseFormulaFromJson(MATCHER_AF.group(2)));
         } else if (MATCHER_AG.matches()) {
@@ -184,7 +202,7 @@ public class ModelCheckerCTL {
             return new Or(parseFormulaFromJson(MATCHER_OR.group(1)), parseFormulaFromJson(MATCHER_OR.group(3)));
         } else if (MATCHER_TRUE.matches()) {
             System.out.println("MATCH_TRUE:" + MATCHER_TRUE.group());
-            return new True();
+            return True.getInstance();
         } else if (MATCHER_FALSE.matches()) {
             System.out.println("MATCH_FALSE:" + MATCHER_FALSE.group());
             return new False();
@@ -192,20 +210,182 @@ public class ModelCheckerCTL {
             System.out.println("MATCH_ATOM:" + MATCHER_ATOM.group());
             return new Atom(MATCHER_ATOM.group());
         } else {
-            System.out.println("ERROR????");
-            return new Atom("ERROR");
+            throw new Exception("La formule CTL entrée dans le fichier Json est très certainement incorrecte.");
         }
     }
 
-    public static Map<State, Boolean> marking(CTLFormula formula) {
-        Map<State, Boolean> statesBool = new HashMap<>();
-        for (State state : kripkeStructure.getStates().values()) {
-            if (state.getLabels().contains(formula)) {
-                statesBool.put(state, Boolean.TRUE);
-            } else {
-                statesBool.put(state, Boolean.FALSE);
+    public static void satisfies(ArrayList<StateWrapper> stateWrapperList) {
+        StringBuilder resultPrompted = new StringBuilder("La fonction CTL \"" + ctlFormula.toString() + "\" est vérifiée par les états : ");
+        for (StateWrapper ctlChecker : stateWrapperList) {
+            if (ctlChecker.getVerifiesCTL().equals(Boolean.TRUE)) {
+                resultPrompted.append(ctlChecker.getStateName()).append(", ");
             }
         }
-        return statesBool;
+        System.out.println(resultPrompted.toString());
+    }
+
+    // Si formula est une proposition atomique
+    public static ArrayList<StateWrapper> marking(CTLFormula formula) {
+        ArrayList<StateWrapper> subStateWrappers = createStateWrapperList();
+        for (StateWrapper stateWrapper : subStateWrappers) {
+            if (stateWrapper.getState().getLabels().contains(formula)
+                    || stateWrapper.getState().getLabels().contains(True.getInstance())) {
+                stateWrapper.setVerifiesCTL(Boolean.TRUE);
+            } else {
+                stateWrapper.setVerifiesCTL(Boolean.FALSE);
+            }
+        }
+        return subStateWrappers;
+    }
+
+    public static void case1(CTLFormula formula) {
+        stateWrapperList = marking(formula);
+        satisfies(stateWrapperList);
+    }
+
+    public static void case2notPhi(CTLFormula formula) {
+        Not formula0 = (Not) formula;
+        ArrayList<StateWrapper> markingPhi = marking(formula0.getOperand());
+
+        for (int i = 0; i < stateWrapperList.size(); i++) {
+            if (markingPhi.get(i).getVerifiesCTL().equals(Boolean.TRUE)) {
+                stateWrapperList.get(i).setVerifiesCTL(Boolean.FALSE);
+            } else {
+                stateWrapperList.get(i).setVerifiesCTL(Boolean.TRUE);
+            }
+        }
+
+        satisfies(stateWrapperList);
+    }
+
+
+    public static void case3And(CTLFormula formula) {
+        And formula0 = (And) formula;
+        ArrayList<StateWrapper> markingPhi1 = marking(formula0.getOperand1());
+        ArrayList<StateWrapper> markingPhi2 = marking(formula0.getOperand2());
+
+        for (int i = 0; i < stateWrapperList.size(); i++) {
+            Boolean result = markingPhi1.get(i).getVerifiesCTL() && markingPhi2.get(i).getVerifiesCTL();
+            stateWrapperList.get(i).setVerifiesCTL(result);
+        }
+
+        satisfies(stateWrapperList);
+    }
+
+    public static void case4EX(CTLFormula formula) {
+        EX formula1 = (EX) formula;
+        ArrayList<StateWrapper> markingPhi = marking(formula1.getOperand());
+
+        for (int i = 0; i < stateWrapperList.size(); i++) {
+            StateWrapper stateWrapper_i = stateWrapperList.get(i);
+            stateWrapper_i.setVerifiesCTL(Boolean.FALSE);
+            ArrayList<State> linkedStates = markingPhi.get(i).getState().getLinkedStates();
+            for (State linkedState : linkedStates) {
+                if (linkedState.getLabels().contains(formula1.getOperand())
+                        || linkedState.getLabels().contains(True.getInstance())) {
+                    stateWrapper_i.setVerifiesCTL(Boolean.TRUE);
+                }
+            }
+        }
+        satisfies(stateWrapperList);
+    }
+
+    public static void case5EU(CTLFormula formula) {
+        EU formula0 = (EU) formula;
+
+        ArrayList<StateWrapper> markingPhi1 = marking(formula0.getOperand1());
+        ArrayList<StateWrapper> markingPhi2 = marking(formula0.getOperand2());
+        Map<StateWrapper, Boolean> stateSeenBefore = new HashMap<>();
+
+        for (StateWrapper stateWrapper : stateWrapperList) {
+            stateWrapper.setVerifiesCTL(Boolean.FALSE);
+            stateSeenBefore.put(stateWrapper, Boolean.FALSE);
+        }
+
+        ArrayList<StateWrapper> L = new ArrayList<>(kripkeStructure.getStates().size());
+
+        for (int i = 0; i < stateWrapperList.size(); i++) {
+            StateWrapper phi2StateWrapper = markingPhi2.get(i);
+            if (markingPhi2.get(i).getVerifiesCTL()) {
+                L.add(phi2StateWrapper);
+            }
+        }
+
+        while (!L.isEmpty()) {
+            int index = stateWrapperList.indexOf(L.remove(L.size() - 1));
+            StateWrapper stateWrapperChild = stateWrapperList.get(index);
+            stateWrapperChild.setVerifiesCTL(Boolean.TRUE);
+
+            ArrayList<State> parentStates = stateWrapperChild.getState().getParentStates();
+
+            int i = parentStates.size();
+            while (i > 0) {
+                index = findStateWrapperIndex(parentStates.get(i - 1));
+                if (!stateSeenBefore.get(stateWrapperList.get(index))) {
+                    stateSeenBefore.put(stateWrapperList.get(index), Boolean.TRUE);
+                    if (markingPhi1.get(index).getVerifiesCTL()) {
+                        L.add(markingPhi1.get(index));
+                    }
+                }
+                i--;
+            }
+        }
+        satisfies(stateWrapperList);
+    }
+
+    public static void case6AU(CTLFormula formula) {
+        AU formula0 = (AU) formula;
+
+        ArrayList<StateWrapper> markingPhi1 = marking(formula0.getOperand1());
+        ArrayList<StateWrapper> markingPhi2 = marking(formula0.getOperand2());
+        Map<StateWrapper, Boolean> stateSeenBefore = new HashMap<>();
+        ArrayList<StateWrapper> L = new ArrayList<>(kripkeStructure.getStates().size());
+
+        for (int i = 0; i < stateWrapperList.size(); i++) {
+            stateWrapperList.get(i).getState().resetNb();
+            stateWrapperList.get(i).setVerifiesCTL(Boolean.FALSE);
+            if (markingPhi2.get(i).getVerifiesCTL()) {
+                L.add(stateWrapperList.get(i));
+            }
+        }
+
+        while (!L.isEmpty()) {
+            int index = stateWrapperList.indexOf(L.remove(L.size() - 1));
+            StateWrapper stateWrapperChild = stateWrapperList.get(index);
+            stateWrapperChild.setVerifiesCTL(Boolean.TRUE);
+
+            ArrayList<State> parentStates = stateWrapperChild.getState().getParentStates();
+
+            int i = parentStates.size();
+            while (i > 0) {
+                index = findStateWrapperIndex(parentStates.get(i - 1));
+                stateWrapperList.get(index).getState().decrementNb();
+                if (stateWrapperList.get(index).getState().getNb() == 0 && markingPhi1.get(index).getVerifiesCTL()
+                && !stateWrapperList.get(index).getVerifiesCTL()) {
+                    L.add(stateWrapperList.get(index));
+                }
+
+                i--;
+            }
+        }
+        satisfies(stateWrapperList);
+    }
+
+
+    public static int findStateWrapperIndex(State state) {
+        for (int i = 0; i < stateWrapperList.size(); i++) {
+            if (stateWrapperList.get(i).getState().equals(state)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    public static ArrayList<StateWrapper> createStateWrapperList() {
+        ArrayList<StateWrapper> ctlCheckers = new ArrayList<>(kripkeStructure.getStates().size());
+        for (State state : kripkeStructure.getStates().values()) {
+            ctlCheckers.add(new StateWrapper(state));
+        }
+        return ctlCheckers;
     }
 }
