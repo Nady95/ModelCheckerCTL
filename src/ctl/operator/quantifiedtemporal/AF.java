@@ -1,24 +1,34 @@
 package ctl.operator.quantifiedtemporal;
 
 import ctl.CTLFormula;
-import ctl.atom.True;
 
 import java.util.Objects;
 
+import static ctl.atom.True.True;
+
+/**
+ * Classe permettant de représenter une formule CTL de la forme AF(phi).
+ *
+ * @author Nady Saddik
+ * @author Rémi PHYU THANT THAR
+ * @version 1.0
+ * @since January 2021
+ */
 public class AF implements CTLFormula {
     private final CTLFormula operand;
 
+    /**
+     * Constructeur permettant d'instancier une formule CTL de type AF(phi).
+     *
+     * @param operand phi
+     */
     public AF(CTLFormula operand) {
         this.operand = operand;
     }
 
     @Override
     public CTLFormula toCTL() {
-        return new AU(new True(), operand).toCTL();
-    }
-
-    public CTLFormula getOperand() {
-        return operand;
+        return new AU(True(), operand).toCTL();
     }
 
     @Override

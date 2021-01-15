@@ -2,7 +2,6 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import ctl.StateWrapper;
 import ctl.CTLFormula;
 import ctl.atom.Atom;
 import ctl.atom.False;
@@ -18,14 +17,23 @@ import java.io.IOException;
 import java.io.Reader;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+
+import static ctl.atom.False.False;
+import static ctl.atom.True.True;
 
 /**
- * Main class of the application "Model Checker CTL"
+ * Classe principale de l'application "Model Checker CTL", réalisée dans le cadre d'un projet de Systèmes complexes
+ * en Master 2 PLS à l'Institut Galilée.
  * <p>
- * The goal of this app is to...
+ * Cette application a pour but de permettre à l'utilisateur de soumettre une structure de Kripke accompagnée d'une
+ * formule CTL, et de vérifier quels états de la structure la vérifie. Ces derniers sont fournis via un fichier json
+ * et la syntaxe à suivre est indiquée dans le README.md disponible ici :
+ * https://github.com/Nady95/ModelCheckerCTL/blob/master/README.md
  *
  * @author Nady Saddik
  * @author Rémi PHYU THANT THAR
@@ -35,61 +43,38 @@ import java.util.regex.Pattern;
 public class ModelCheckerCTL {
     private static final KripkeStructure kripkeStructure = new KripkeStructure();
     private static CTLFormula ctlFormula;
-    private static ArrayList<StateWrapper> stateWrapperList;
-
-    private static final Pattern PATTERN_ATOM = Pattern.compile("[a-z][a-zA-Z0-9_]*");
-    private static final Pattern PATTERN_FALSE = Pattern.compile("false");
-    private static final Pattern PATTERN_TRUE = Pattern.compile("true");
-
-    private static final Pattern PATTERN_AND = Pattern.compile("(.+)(&&)(.+)");
-    private static final Pattern PATTERN_NOT = Pattern.compile("(not)\\((.+)\\)");
-    private static final Pattern PATTERN_OR = Pattern.compile("(.+)(\\|\\|)(.+)");
-
-    private static final Pattern PATTERN_AF = Pattern.compile("(AF\\((.+)\\))");
-    private static final Pattern PATTERN_AG = Pattern.compile("(AG\\((.+)\\))");
-    private static final Pattern PATTERN_AU = Pattern.compile("(A(\\((.+)U(.+)\\)))");
-    private static final Pattern PATTERN_AX = Pattern.compile("(AX\\((.+)\\))");
-
-    private static final Pattern PATTERN_EF = Pattern.compile("(EF\\((.+)\\))");
-    private static final Pattern PATTERN_EG = Pattern.compile("(EG\\((.+)\\))");
-    private static final Pattern PATTERN_EU = Pattern.compile("(E(\\((.+)U(.+)\\)))");
-    private static final Pattern PATTERN_EX = Pattern.compile("(EX\\((.+)\\))");
 
 
+    /**
+     * Méthode principale de notre programme : elle se charge récupérer le fichier passé par l'utilisateur, et appelle
+     * les fonctions permettant d'instancier la structure de Kripke ainsi que la formule CTL, et de procéder à la
+     * vérification de cette dernière
+     *
+     * @param args Texte passé en argument dans la console (seul args[0] est lu et devrait être un chemin vers un
+     *             fichier json)
+     */
     public static void main(String[] args) {
-        if (args.length == 0) {
+        if (args.length <= 0) {
             throw new IllegalArgumentException("Il faut donner en paramètre un lien vers un fichier contenant " +
                     "une description textuelle d'une structure de Kripke (KS) et une formule CTL");
-        }
-
-        try {
-            readFile(args[0]);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        // On ajoute tous les états de la structure de Kripke à notre liste principale
-        stateWrapperList = createStateWrapperList();
-
-        CTLFormula ctlFormulaSimplified = ctlFormula.toCTL();
-
-        System.out.println(ctlFormulaSimplified.toString());
-
-        if (ctlFormulaSimplified instanceof Atom) {
-            case1(ctlFormulaSimplified);
-        } else if (ctlFormulaSimplified instanceof Not) {
-            case2notPhi(ctlFormulaSimplified);
-        } else if (ctlFormulaSimplified instanceof And) {
-            case3And(ctlFormulaSimplified);
-        } else if (ctlFormulaSimplified instanceof EX) {
-            case4EX(ctlFormulaSimplified);
-        } else if (ctlFormulaSimplified instanceof EU) {
-            case5EU(ctlFormulaSimplified);
-        } else if (ctlFormulaSimplified instanceof AU) {
-            case6AU(ctlFormulaSimplified);
+        } else {
+            try {
+                readFile(args[0]);
+                CTLFormula baseFormula = ctlFormula.toCTL();
+                checkCTLSatisfaction(baseFormula);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
     }
 
+    /**
+     * Méthode se chargeant de lire le fichier passé en paramètre, et d'appeler toutes les fonctions permettant
+     * de créer la structure de Kripke et la fonction CTL à tester grâce au contenu du fichier lu
+     *
+     * @param filePath Lien absolu vers le fichier json à lire
+     * @throws Exception Si le fichier n'a pas pu être lu correctement
+     */
     public static void readFile(String filePath) throws Exception {
         try {
             // On récupère le contenu de notre fichier Json avec l'API Gson
@@ -111,7 +96,12 @@ public class ModelCheckerCTL {
         }
     }
 
-
+    /**
+     * Méthode se chargeant d'instancier un état avec tous ses paramètres grâce à un tableau "states" d'un fichier Json,
+     * et de l'ajouter à la structure de Kripke.
+     *
+     * @param jsonArray Tableau json contenant les différents états de la structure de Kripke
+     */
     public static void createStateFromJson(JsonArray jsonArray) {
         for (JsonElement state : jsonArray) {
 
@@ -123,10 +113,23 @@ public class ModelCheckerCTL {
 
             // On récupère les labels
             List<CTLFormula> labels = new ArrayList<>();
-            JsonArray jArray = state.getAsJsonObject().getAsJsonArray("labels");
-            for (int i = 0; i < jArray.size(); i++) {
-                CTLFormula formula = new Atom(jArray.get(i).getAsJsonObject().get("atom").getAsString());
-                labels.add(formula);
+            JsonArray jLabels = state.getAsJsonObject().getAsJsonArray("labels");
+            for (int i = 0; i < jLabels.size(); i++) {
+
+                // On récupère le label dans le fichier Json sous la forme d'un JsonObject
+                JsonObject jLabel = jLabels.get(i).getAsJsonObject();
+                // Puis on récupère la formule atomique
+                Atom atom = new Atom(jLabel.get("atom").getAsString());
+
+                // Si la négation de la formule atomique a été demandée dans le Json, on crée CTLFormula avec Not
+                if (jLabel.get("negation").getAsBoolean()) {
+                    Not formula = new Not(atom);
+                    labels.add(formula);
+                }
+                // Sinon, on crée une formule atomique classique
+                else {
+                    labels.add(atom);
+                }
             }
 
             // Enfin, on crée l'état et on l'ajoute dans la structure de Kripke
@@ -134,6 +137,12 @@ public class ModelCheckerCTL {
         }
     }
 
+    /**
+     * Méthode se chargeant de créer les transitions dans une structure de Kripke grâce à  un tableau "transitions"
+     * d'un fichier json.
+     *
+     * @param jsonArray Tableau json contenant les différentes transitions de la structure de Kripke
+     */
     public static void createTransitionsFromJson(JsonArray jsonArray) {
         for (JsonElement transition : jsonArray) {
             String stateAName = transition.getAsJsonObject().get("stateA").getAsString();
@@ -146,246 +155,346 @@ public class ModelCheckerCTL {
         }
     }
 
+    /**
+     * Méthode récursive ayant pour rôle d'utiliser des expressions régulières afin de parser une formule CTL lu en
+     * tant que chaîne de caractères, et de l'instancier en tant qu'un objet CTLFormula
+     *
+     * @param formulaAsString Formule CTL non parsée sous forme de chaîne de caractères
+     * @return La formule CTL parsée et instanciée en tant qu'un objet CTLFormula
+     * @throws Exception Indique que la formule donnée en paramètre est très certainement incorrecte
+     */
     public static CTLFormula parseFormulaFromJson(String formulaAsString) throws Exception {
-        // On crée nos matchers qui vont parcourir le texte en cherchant le pattern (peut être simplifié)
-        Matcher MATCHER_ATOM = PATTERN_ATOM.matcher(formulaAsString);
-        Matcher MATCHER_FALSE = PATTERN_FALSE.matcher(formulaAsString);
-        Matcher MATCHER_TRUE = PATTERN_TRUE.matcher(formulaAsString);
+        // On retire tous les espaces et caractères invisibles
+        String formulaTrim = formulaAsString.replaceAll("\\s+","");
 
-        Matcher MATCHER_AND = PATTERN_AND.matcher(formulaAsString);
-        Matcher MATCHER_NOT = PATTERN_NOT.matcher(formulaAsString);
-        Matcher MATCHER_OR = PATTERN_OR.matcher(formulaAsString);
+        // On crée nos matchers qui vont parcourir le texte en cherchant le pattern
+        Matcher MATCHER_ATOM = PatternList.ATOM.matcher(formulaTrim);
+        Matcher MATCHER_FALSE = PatternList.FALSE.matcher(formulaTrim);
+        Matcher MATCHER_TRUE = PatternList.TRUE.matcher(formulaTrim);
 
-        Matcher MATCHER_AF = PATTERN_AF.matcher(formulaAsString);
-        Matcher MATCHER_AG = PATTERN_AG.matcher(formulaAsString);
-        Matcher MATCHER_AU = PATTERN_AU.matcher(formulaAsString);
-        Matcher MATCHER_AX = PATTERN_AX.matcher(formulaAsString);
+        Matcher MATCHER_AND = PatternList.AND.matcher(formulaTrim);
+        Matcher MATCHER_NOT = PatternList.NOT.matcher(formulaTrim);
+        Matcher MATCHER_OR = PatternList.OR.matcher(formulaTrim);
 
-        Matcher MATCHER_EF = PATTERN_EF.matcher(formulaAsString);
-        Matcher MATCHER_EG = PATTERN_EG.matcher(formulaAsString);
-        Matcher MATCHER_EU = PATTERN_EU.matcher(formulaAsString);
-        Matcher MATCHER_EX = PATTERN_EX.matcher(formulaAsString);
+        Matcher MATCHER_AF = PatternList.AF.matcher(formulaTrim);
+        Matcher MATCHER_AG = PatternList.AG.matcher(formulaTrim);
+        Matcher MATCHER_AU = PatternList.AU.matcher(formulaTrim);
+        Matcher MATCHER_AX = PatternList.AX.matcher(formulaTrim);
+
+        Matcher MATCHER_EF = PatternList.EF.matcher(formulaTrim);
+        Matcher MATCHER_EG = PatternList.EG.matcher(formulaTrim);
+        Matcher MATCHER_EU = PatternList.EU.matcher(formulaTrim);
+        Matcher MATCHER_EX = PatternList.EX.matcher(formulaTrim);
 
         // On cherche des matches (l'ordre des matchers est important)
         if (MATCHER_AF.matches()) {
-            System.out.println("MATCH_AF:" + MATCHER_AF.group());
             return new AF(parseFormulaFromJson(MATCHER_AF.group(2)));
         } else if (MATCHER_AG.matches()) {
-            System.out.println("MATCH_AG:" + MATCHER_AG.group());
             return new AG(parseFormulaFromJson(MATCHER_AG.group(2)));
         } else if (MATCHER_AU.matches()) {
-            System.out.println("MATCH_AU:" + MATCHER_AU.group());
             return new AU(parseFormulaFromJson(MATCHER_AU.group(3)), parseFormulaFromJson(MATCHER_AU.group(4)));
         } else if (MATCHER_AX.matches()) {
-            System.out.println("MATCH_AX:" + MATCHER_AX.group());
             return new AX(parseFormulaFromJson(MATCHER_AX.group(2)));
         } else if (MATCHER_EF.matches()) {
-            System.out.println("MATCH_EF:" + MATCHER_EF.group());
             return new EF(parseFormulaFromJson(MATCHER_EF.group(2)));
         } else if (MATCHER_EG.matches()) {
-            System.out.println("MATCH_EG:" + MATCHER_EG.group());
             return new EG(parseFormulaFromJson(MATCHER_EG.group(2)));
         } else if (MATCHER_EU.matches()) {
-            System.out.println("MATCH_EU:" + MATCHER_EU.group());
             return new EU(parseFormulaFromJson(MATCHER_EU.group(3)), parseFormulaFromJson(MATCHER_EU.group(4)));
         } else if (MATCHER_EX.matches()) {
-            System.out.println("MATCH_EX:" + MATCHER_EX.group());
             return new EX(parseFormulaFromJson(MATCHER_EX.group(2)));
         } else if (MATCHER_NOT.matches()) {
-            System.out.println("MATCH_NOT:" + MATCHER_NOT.group());
             return new Not(parseFormulaFromJson(MATCHER_NOT.group(2)));
         } else if (MATCHER_AND.matches()) {
-            System.out.println("MATCH_AND:" + MATCHER_AND.group());
             return new And(parseFormulaFromJson(MATCHER_AND.group(1)), parseFormulaFromJson(MATCHER_AND.group(3)));
         } else if (MATCHER_OR.matches()) {
-            System.out.println("MATCH_OR:" + MATCHER_OR.group());
             return new Or(parseFormulaFromJson(MATCHER_OR.group(1)), parseFormulaFromJson(MATCHER_OR.group(3)));
         } else if (MATCHER_TRUE.matches()) {
-            System.out.println("MATCH_TRUE:" + MATCHER_TRUE.group());
-            return True.getInstance();
+            return True();
         } else if (MATCHER_FALSE.matches()) {
-            System.out.println("MATCH_FALSE:" + MATCHER_FALSE.group());
-            return new False();
+            return False();
         } else if (MATCHER_ATOM.matches()) {
-            System.out.println("MATCH_ATOM:" + MATCHER_ATOM.group());
             return new Atom(MATCHER_ATOM.group());
         } else {
-            throw new Exception("La formule CTL entrée dans le fichier Json est très certainement incorrecte.");
+            throw new Exception("La formule CTL entrée dans le fichier Json est très certainement incorrecte. " +
+                    "Veuillez vous référer au README.md pour connaître la syntaxe : " +
+                    "https://github.com/Nady95/ModelCheckerCTL/blob/master/README.md");
         }
     }
 
-    public static void satisfies(ArrayList<StateWrapper> stateWrapperList) {
-        StringBuilder resultPrompted = new StringBuilder("La fonction CTL \"" + ctlFormula.toString() + "\" est vérifiée par les états : ");
-        for (StateWrapper ctlChecker : stateWrapperList) {
-            if (ctlChecker.getVerifiesCTL().equals(Boolean.TRUE)) {
-                resultPrompted.append(ctlChecker.getStateName()).append(", ");
+    /**
+     * Méthode se chargeant d'indiquer de manière textuelle quels sont les états d'une structure de Kripke qui
+     * satisfont une formule CTL.
+     *
+     * @param formula Formule CTL à tester
+     */
+    public static void checkCTLSatisfaction(CTLFormula formula) {
+        Map<String, Boolean> ctlVerifMap = getCtlVerifMap(formula);
+
+        StringBuilder resultPrinted = new StringBuilder(
+                "La formule CTL \"" + ctlFormula.toString() + "\" est vérifiée par les états : "
+        );
+
+        for (Map.Entry<String, Boolean> entry : ctlVerifMap.entrySet()) {
+            String state = entry.getKey();
+            Boolean verifiesCTL = entry.getValue();
+
+            if (verifiesCTL) {
+                resultPrinted.append(state).append(", ");
             }
         }
-        System.out.println(resultPrompted.toString());
+
+        System.out.println(resultPrinted);
     }
 
-    // Si formula est une proposition atomique
-    public static ArrayList<StateWrapper> marking(CTLFormula formula) {
-        ArrayList<StateWrapper> subStateWrappers = createStateWrapperList();
-        for (StateWrapper stateWrapper : subStateWrappers) {
-            if (stateWrapper.getState().getLabels().contains(formula)
-                    || stateWrapper.getState().getLabels().contains(True.getInstance())) {
-                stateWrapper.setVerifiesCTL(Boolean.TRUE);
+    /**
+     * Méthode se chargeant de vérifier si la structure de Kripke créée satisfait une formule CTL en fonction du type
+     * de cette dernière, et retourne une table de hashage contenant le nom de l'état pour clé, et un booléen comme
+     * valeur.
+     *
+     * @param formula Formule CTL à tester
+     * @return Table de hashage contenant le nom de l'état pour clé, et un booléen indiquant s'il vérifie la formule
+     * CTL comme valeur
+     */
+    public static Map<String, Boolean> getCtlVerifMap(CTLFormula formula) {
+        Map<String, Boolean> ctlVerifMap = new HashMap<>();
+
+        if (formula instanceof Atom) {
+            ctlVerifMap = marking((Atom) formula);
+        } else if (formula instanceof Not) {
+            ctlVerifMap = case1notPhi((Not) formula);
+        } else if (formula instanceof And) {
+            ctlVerifMap = case2And((And) formula);
+        } else if (formula instanceof EX) {
+            ctlVerifMap = case3EX((EX) formula);
+        } else if (formula instanceof EU) {
+            ctlVerifMap = case4EU((EU) formula);
+        } else if (formula instanceof AU) {
+            ctlVerifMap = case5AU((AU) formula);
+        } else if (formula instanceof True) {
+            ctlVerifMap = createCtlVerifMap();
+            ctlVerifMap.replaceAll((state, bool) -> true);
+        } else if (formula instanceof False) {
+            ctlVerifMap = createCtlVerifMap();
+        }
+
+        return ctlVerifMap;
+    }
+
+    /**
+     * Algorithme se chargeant de faire le marquage d'une structure de Kripke : elle regarde pour chaque état s'il
+     * vérifie une formule atomique (label) et retourne une table de hashage contenant le nom de l'état pour clé, et un
+     * booléen indiquant s'il la vérifie pour valeur.
+     *
+     * @param formula Formule (CTL) atomique à tester
+     * @return Table de hashage contenant le nom de l'état pour clé, et un booléen indiquant s'il vérifie la formule
+     * atomique pour valeur
+     */
+    public static Map<String, Boolean> marking(Atom formula) {
+        Map<String, Boolean> marking = createCtlVerifMap();
+
+        for (Map.Entry<String, Boolean> entry : marking.entrySet()) {
+            String stateName = entry.getKey();
+
+            State state = kripkeStructure.getStateFromName(stateName);
+            if (state.hasLabel(formula) || state.hasLabel(True())) {
+                entry.setValue(true);
             } else {
-                stateWrapper.setVerifiesCTL(Boolean.FALSE);
+                entry.setValue(false);
             }
         }
-        return subStateWrappers;
+        return marking;
     }
 
-    public static void case1(CTLFormula formula) {
-        stateWrapperList = marking(formula);
-        satisfies(stateWrapperList);
+    /**
+     * Algorithme se chargeant de traîter le cas où la formule CTL est de type Psi = Not(phi).
+     *
+     * @param formula Formule CTL de type Not(phi)
+     * @return Table de hashage contenant le nom de l'état pour clé, et un booléen indiquant s'il vérifie la formule
+     * CTL pour valeur
+     */
+    public static Map<String, Boolean> case1notPhi(Not formula) {
+        CTLFormula operand = formula.getOperand();
+        Map<String, Boolean> ctlVerifMap = getCtlVerifMap(operand);
+
+        ctlVerifMap.replaceAll((state, bool) -> !bool);
+
+        return ctlVerifMap;
     }
 
-    public static void case2notPhi(CTLFormula formula) {
-        Not formula0 = (Not) formula;
-        ArrayList<StateWrapper> markingPhi = marking(formula0.getOperand());
 
-        for (int i = 0; i < stateWrapperList.size(); i++) {
-            if (markingPhi.get(i).getVerifiesCTL().equals(Boolean.TRUE)) {
-                stateWrapperList.get(i).setVerifiesCTL(Boolean.FALSE);
-            } else {
-                stateWrapperList.get(i).setVerifiesCTL(Boolean.TRUE);
-            }
+    /**
+     * Algorithme se chargeant de traiter le cas où la formule CTL est de type Psi = phi1 INTER phi2.
+     *
+     * @param formula Formule CTL de type phi1 INTER phi2
+     * @return Table de hashage contenant le nom de l'état pour clé, et un booléen indiquant s'il vérifie la formule
+     * CTL pour valeur
+     */
+    public static Map<String, Boolean> case2And(And formula) {
+        CTLFormula operand1 = formula.getOperand1();
+        CTLFormula operand2 = formula.getOperand2();
+
+        Map<String, Boolean> ctlVerifMapPhi1 = getCtlVerifMap(operand1);
+        Map<String, Boolean> ctlVerifMapPhi2 = getCtlVerifMap(operand2);
+
+        for (Map.Entry<String, Boolean> entry1 : ctlVerifMapPhi1.entrySet()) {
+            String stateName = entry1.getKey();
+            Boolean bool1 = entry1.getValue();
+            Boolean bool2 = ctlVerifMapPhi2.get(stateName);
+            ctlVerifMapPhi1.replace(stateName, bool1 && bool2);
         }
 
-        satisfies(stateWrapperList);
+        return ctlVerifMapPhi1;
     }
 
+    /**
+     * Algorithme se chargeant de traiter le cas où la formule CTL est de type Psi = EX(phi)
+     *
+     * @param formula Formule CTL de type EX(phi)
+     * @return Table de hashage contenant le nom de l'état pour clé, et un booléen indiquant s'il vérifie la formule
+     * CTL pour valeur
+     */
+    public static Map<String, Boolean> case3EX(EX formula) {
+        CTLFormula operand = formula.getOperand();
+        Map<String, Boolean> ctlVerifMapPhi = getCtlVerifMap(operand);
+        Map<String, Boolean> ctlVerifMap = createCtlVerifMap();
 
-    public static void case3And(CTLFormula formula) {
-        And formula0 = (And) formula;
-        ArrayList<StateWrapper> markingPhi1 = marking(formula0.getOperand1());
-        ArrayList<StateWrapper> markingPhi2 = marking(formula0.getOperand2());
+        for (Map.Entry<String, Boolean> entry : ctlVerifMap.entrySet()) {
+            String stateName = entry.getKey();
+            State state = kripkeStructure.getStateFromName(stateName);
 
-        for (int i = 0; i < stateWrapperList.size(); i++) {
-            Boolean result = markingPhi1.get(i).getVerifiesCTL() && markingPhi2.get(i).getVerifiesCTL();
-            stateWrapperList.get(i).setVerifiesCTL(result);
-        }
-
-        satisfies(stateWrapperList);
-    }
-
-    public static void case4EX(CTLFormula formula) {
-        EX formula1 = (EX) formula;
-        ArrayList<StateWrapper> markingPhi = marking(formula1.getOperand());
-
-        for (int i = 0; i < stateWrapperList.size(); i++) {
-            StateWrapper stateWrapper_i = stateWrapperList.get(i);
-            stateWrapper_i.setVerifiesCTL(Boolean.FALSE);
-            ArrayList<State> linkedStates = markingPhi.get(i).getState().getLinkedStates();
-            for (State linkedState : linkedStates) {
-                if (linkedState.getLabels().contains(formula1.getOperand())
-                        || linkedState.getLabels().contains(True.getInstance())) {
-                    stateWrapper_i.setVerifiesCTL(Boolean.TRUE);
+            for (State childState : state.getChildStates()) {
+                String childStateName = childState.getName();
+                if (ctlVerifMapPhi.get(childStateName)) {
+                    ctlVerifMap.replace(stateName, true);
                 }
             }
         }
-        satisfies(stateWrapperList);
+
+        return ctlVerifMap;
     }
 
-    public static void case5EU(CTLFormula formula) {
-        EU formula0 = (EU) formula;
+    /**
+     * Algorithme se chargeant de traiter le cas où la formule CTL est de type Psi = E(phi1 UNTIL phi2)
+     *
+     * @param formula Formule CTL de type E(phi1 UNTIL phi2)
+     * @return Table de hashage contenant le nom de l'état pour clé, et un booléen indiquant s'il vérifie la formule
+     * CTL pour valeur
+     */
+    public static Map<String, Boolean> case4EU(EU formula) {
+        CTLFormula operand1 = formula.getOperand1();
+        CTLFormula operand2 = formula.getOperand2();
 
-        ArrayList<StateWrapper> markingPhi1 = marking(formula0.getOperand1());
-        ArrayList<StateWrapper> markingPhi2 = marking(formula0.getOperand2());
-        Map<StateWrapper, Boolean> stateSeenBefore = new HashMap<>();
+        Map<String, Boolean> ctlVerifMapPhi1 = getCtlVerifMap(operand1);
+        Map<String, Boolean> ctlVerifMapPhi2 = getCtlVerifMap(operand2);
+        Map<String, Boolean> ctlVerifMap = createCtlVerifMap();
 
-        for (StateWrapper stateWrapper : stateWrapperList) {
-            stateWrapper.setVerifiesCTL(Boolean.FALSE);
-            stateSeenBefore.put(stateWrapper, Boolean.FALSE);
-        }
+        Map<String, Boolean> statesSeenBefore = new HashMap<>();
+        ArrayList<String> L = new ArrayList<>(kripkeStructure.getStates().size());
 
-        ArrayList<StateWrapper> L = new ArrayList<>(kripkeStructure.getStates().size());
 
-        for (int i = 0; i < stateWrapperList.size(); i++) {
-            StateWrapper phi2StateWrapper = markingPhi2.get(i);
-            if (markingPhi2.get(i).getVerifiesCTL()) {
-                L.add(phi2StateWrapper);
+        for (State state : kripkeStructure.getStates().values()) {
+            // On récupère le nom de l'état (qui sert d'identifiant)
+            String stateName = state.getName();
+            statesSeenBefore.put(stateName, false);
+            if (ctlVerifMapPhi2.get(stateName)) {
+                L.add(stateName);
             }
         }
 
         while (!L.isEmpty()) {
-            int index = stateWrapperList.indexOf(L.remove(L.size() - 1));
-            StateWrapper stateWrapperChild = stateWrapperList.get(index);
-            stateWrapperChild.setVerifiesCTL(Boolean.TRUE);
+            String stateName = L.remove(L.size() - 1);
+            State state = kripkeStructure.getStateFromName(stateName);
+            ctlVerifMap.replace(stateName, true);
 
-            ArrayList<State> parentStates = stateWrapperChild.getState().getParentStates();
-
-            int i = parentStates.size();
-            while (i > 0) {
-                index = findStateWrapperIndex(parentStates.get(i - 1));
-                if (!stateSeenBefore.get(stateWrapperList.get(index))) {
-                    stateSeenBefore.put(stateWrapperList.get(index), Boolean.TRUE);
-                    if (markingPhi1.get(index).getVerifiesCTL()) {
-                        L.add(markingPhi1.get(index));
+            for (State parentState : state.getParentStates()) {
+                String parentStateName = parentState.getName();
+                if (!statesSeenBefore.get(parentStateName)) {
+                    statesSeenBefore.replace(parentStateName, true);
+                    if (ctlVerifMapPhi1.get(parentStateName)) {
+                        L.add(parentStateName);
                     }
                 }
-                i--;
             }
         }
-        satisfies(stateWrapperList);
+
+        return ctlVerifMap;
     }
 
-    public static void case6AU(CTLFormula formula) {
-        AU formula0 = (AU) formula;
+    /**
+     * Algorithme se chargeant de traiter le cas où la formule CTL est de type Psi = A(phi1 UNTIL phi2)
+     *
+     * @param formula Formule CTL de type A(phi1 UNTIL phi2)
+     * @return Table de hashage contenant le nom de l'état pour clé, et un booléen indiquant s'il vérifie la formule
+     * CTL pour valeur
+     */
+    public static Map<String, Boolean> case5AU(AU formula) {
+        CTLFormula operand1 = formula.getOperand1();
+        CTLFormula operand2 = formula.getOperand2();
 
-        ArrayList<StateWrapper> markingPhi1 = marking(formula0.getOperand1());
-        ArrayList<StateWrapper> markingPhi2 = marking(formula0.getOperand2());
-        Map<StateWrapper, Boolean> stateSeenBefore = new HashMap<>();
-        ArrayList<StateWrapper> L = new ArrayList<>(kripkeStructure.getStates().size());
+        Map<String, Boolean> ctlVerifMapPhi1 = getCtlVerifMap(operand1);
+        Map<String, Boolean> ctlVerifMapPhi2 = getCtlVerifMap(operand2);
+        Map<String, Boolean> ctlVerifMap = createCtlVerifMap();
 
-        for (int i = 0; i < stateWrapperList.size(); i++) {
-            stateWrapperList.get(i).getState().resetNb();
-            stateWrapperList.get(i).setVerifiesCTL(Boolean.FALSE);
-            if (markingPhi2.get(i).getVerifiesCTL()) {
-                L.add(stateWrapperList.get(i));
+        ArrayList<String> L = new ArrayList<>(kripkeStructure.getStates().size());
+        Map<String, Integer> degreeMap = createDegreeMap();
+
+        for (Map.Entry<String, Boolean> entry : ctlVerifMapPhi2.entrySet()) {
+            String stateName = entry.getKey();
+            if (ctlVerifMapPhi2.get(stateName)) {
+                L.add(stateName);
             }
         }
 
         while (!L.isEmpty()) {
-            int index = stateWrapperList.indexOf(L.remove(L.size() - 1));
-            StateWrapper stateWrapperChild = stateWrapperList.get(index);
-            stateWrapperChild.setVerifiesCTL(Boolean.TRUE);
+            String stateName = L.remove(L.size() - 1);
+            State state = kripkeStructure.getStateFromName(stateName);
+            ctlVerifMap.replace(stateName, true);
 
-            ArrayList<State> parentStates = stateWrapperChild.getState().getParentStates();
-
-            int i = parentStates.size();
-            while (i > 0) {
-                index = findStateWrapperIndex(parentStates.get(i - 1));
-                stateWrapperList.get(index).getState().decrementNb();
-                if (stateWrapperList.get(index).getState().getNb() == 0 && markingPhi1.get(index).getVerifiesCTL()
-                && !stateWrapperList.get(index).getVerifiesCTL()) {
-                    L.add(stateWrapperList.get(index));
+            for (State parentState : state.getParentStates()) {
+                String parentStateName = parentState.getName();
+                degreeMap.merge(parentStateName, -1, Integer::sum);
+                if (degreeMap.get(parentStateName) == 0 && ctlVerifMapPhi1.get(parentStateName) && !ctlVerifMap.get(parentStateName)) {
+                    L.add(parentStateName);
                 }
-
-                i--;
             }
         }
-        satisfies(stateWrapperList);
+
+        return ctlVerifMap;
     }
 
+    /**
+     * Cette fonction crée une table de hashage qui assigne, pour chaque état de la structure de Kripke, son nom
+     * (qui sert d'identifiant) à une valeur booléenne par défaut (false). Elle aura pour but d'indiquer pour chaque
+     * état s'il vérifie une formule CTL.
+     *
+     * @return Une table de hashage par défaut
+     */
+    public static Map<String, Boolean> createCtlVerifMap() {
+        final Map<String, State> stateMap = kripkeStructure.getStates();
 
-    public static int findStateWrapperIndex(State state) {
-        for (int i = 0; i < stateWrapperList.size(); i++) {
-            if (stateWrapperList.get(i).getState().equals(state)) {
-                return i;
-            }
+        Map<String, Boolean> ctlVerifMap = new HashMap<>(stateMap.size());
+        for (String state : stateMap.keySet()) {
+            ctlVerifMap.put(state, false);
         }
-        return -1;
+
+        return ctlVerifMap;
     }
 
-    public static ArrayList<StateWrapper> createStateWrapperList() {
-        ArrayList<StateWrapper> ctlCheckers = new ArrayList<>(kripkeStructure.getStates().size());
-        for (State state : kripkeStructure.getStates().values()) {
-            ctlCheckers.add(new StateWrapper(state));
+    /**
+     * Cette méthode créer une table de hashage qui assigne, pour chaque état de la structure de Kripke, son nom
+     * (qui sert d'identifiant) à son degré (soit son nombre d'état enfant).
+     *
+     * @return Table de hashage contenant (Nom_de_l_etat, degre_de_l_etat)
+     */
+    public static Map<String, Integer> createDegreeMap() {
+        final Map<String, State> stateMap = kripkeStructure.getStates();
+
+        Map<String, Integer> degreeMap = new HashMap<>(stateMap.size());
+        for (State state : stateMap.values()) {
+            degreeMap.put(state.getName(), state.getNbChild());
         }
-        return ctlCheckers;
+
+        return degreeMap;
     }
 }

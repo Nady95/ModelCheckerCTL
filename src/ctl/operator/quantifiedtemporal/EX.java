@@ -4,9 +4,22 @@ import ctl.CTLFormula;
 
 import java.util.Objects;
 
+/**
+ * Classe permettant de représenter une formule CTL de la forme EX(phi).
+ *
+ * @author Nady Saddik
+ * @author Rémi PHYU THANT THAR
+ * @version 1.0
+ * @since January 2021
+ */
 public class EX implements CTLFormula {
     private final CTLFormula operand;
 
+    /**
+     * Constructeur permettant d'instancier une formule CTL de type EX(phi).
+     *
+     * @param operand phi
+     */
     public EX(CTLFormula operand) {
         this.operand = operand;
     }

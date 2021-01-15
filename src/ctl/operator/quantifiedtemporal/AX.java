@@ -5,9 +5,22 @@ import ctl.operator.bool.Not;
 
 import java.util.Objects;
 
+/**
+ * Classe permettant de représenter une formule CTL de la forme AX(phi).
+ *
+ * @author Nady Saddik
+ * @author Rémi PHYU THANT THAR
+ * @version 1.0
+ * @since January 2021
+ */
 public class AX implements CTLFormula {
     private final CTLFormula operand;
 
+    /**
+     * Constructeur permettant d'instancier une formule CTL de type AX(phi).
+     *
+     * @param operand phi
+     */
     public AX(CTLFormula operand) {
         this.operand = operand;
     }
@@ -15,10 +28,6 @@ public class AX implements CTLFormula {
     @Override
     public CTLFormula toCTL() {
         return new Not(new EX(new Not(operand))).toCTL();
-    }
-
-    public CTLFormula getOperand() {
-        return operand;
     }
 
     @Override

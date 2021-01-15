@@ -5,9 +5,22 @@ import ctl.operator.bool.Not;
 
 import java.util.Objects;
 
+/**
+ * Classe permettant de représenter une formule CTL de la forme EG(phi).
+ *
+ * @author Nady Saddik
+ * @author Rémi PHYU THANT THAR
+ * @version 1.0
+ * @since January 2021
+ */
 public class EG implements CTLFormula {
     private final CTLFormula operand;
 
+    /**
+     * Constructeur permettant d'instancier une formule CTL de type EG(phi).
+     *
+     * @param operand phi
+     */
     public EG(CTLFormula operand) {
         this.operand = operand;
     }
@@ -15,10 +28,6 @@ public class EG implements CTLFormula {
     @Override
     public CTLFormula toCTL() {
         return new Not(new AF(new Not(operand))).toCTL();
-    }
-
-    public CTLFormula getOperand() {
-        return operand;
     }
 
     @Override
